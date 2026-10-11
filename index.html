@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式投資複利模擬器</title>
+    <!-- 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+        }
+
+        /* 左側控制面板 */
+        .control-panel {
+            padding: 2rem;
+            background: #f8fafc;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .control-panel h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .input-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group input[type="number"], 
+        .input-group input[type="range"] {
+            width: 100%;
+        }
+
+        .input-group input[type="number"] {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .range-value {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* 右側視覺化面板 */
+        .visualization-panel {
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: #f0fdf4;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .card:nth-child(2) { background: #eff6ff; border-color: #bfdbfe; }
+        .card:nth-child(3) { background: #fef2f2; border-color: #fecaca; }
+
+        .card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .card p {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .progress-container {
+            margin-bottom: 2rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .progress-bar-bg {
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.5s ease, background-color 0.5s ease;
+        }
+
+        .chart-container {
+            flex-grow: 1;
+            position: relative;
+            min-height: 300px;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .control-panel {
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- 左側控制面板 -->
+        <div class="control-panel">
+            <h2>參數設定</h2>
+            
+            <div class="input-group">
+                <label for="initial">初始本金 (NT$)</label>
+                <input type="number" id="initial" value="100000" min="0" step="1000">
+            </div>
+
+            <div class="input-group">
+                <label for="monthly">每月投入金額 (NT$)</label>
+                <input type="number" id="monthly" value="10000" min="0" step="1000">
+            </div>
+
+            <div class="input-group">
+                <label for="years">投資年限 (<span id="years-display">10</span> 年)</label>
+                <input type="range" id="years" value="10" min="1" max="40">
+            </div>
+
+            <div class="input-group">
+                <label for="rate">預估年化報酬率 (<span id="rate-display">6</span> %)</label>
+                <input type="range" id="rate" value="6" min="0" max="20" step="0.5">
+            </div>
+
+            <div class="input-group">
+                <label for="target">目標金額 (NT$)</label>
+                <input type="number" id="target" value="2000000" min="0" step="10000">
+            </div>
+        </div>
+
+        <!-- 右側視覺化面板 -->
+        <div class="visualization-panel">
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>期末總資產</h3>
+                    <p id="total-amount">NT$ 0</p>
+                </div>
+                <div class="card">
+                    <h3>總投入本金</h3>
+                    <p id="total-principal">NT$ 0</p>
+                </div>
+                <div class="card">
+                    <h3>總利息收入</h3>
+                    <p id="total-interest">NT$ 0</p>
+                </div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span>目標達成率</span>
+                    <span id="progress-text">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素選取
+        const inputs = {
+            initial: document.getElementById('initial'),
+            monthly: document.getElementById('monthly'),
+            years: document.getElementById('years'),
+            rate: document.getElementById('rate'),
+            target: document.getElementById('target')
+        };
+        const displays = {
+            years: document.getElementById('years-display'),
+            rate: document.getElementById('rate-display')
+        };
+        const outputs = {
+            totalAmount: document.getElementById('total-amount'),
+            totalPrincipal: document.getElementById('total-principal'),
+            totalInterest: document.getElementById('total-interest'),
+            progressText: document.getElementById('progress-text'),
+            progressFill: document.getElementById('progress-fill')
+        };
+
+        let chartInstance = null;
+
+        // 格式化數字為貨幣
+        const formatCurrency = (num) => {
+            return 'NT$ ' + Math.round(num).toLocaleString('en-US');
+        };
+
+        // 核心計算與畫面更新邏輯
+        function calculateAndUpdate() {
+            const initial = parseFloat(inputs.initial.value) || 0;
+            const monthly = parseFloat(inputs.monthly.value) || 0;
+            const years = parseInt(inputs.years.value) || 1;
+            const rate = parseFloat(inputs.rate.value) || 0;
+            const target = parseFloat(inputs.target.value) || 1; // 避免除以零
+
+            // 更新 Slider 顯示數字
+            displays.years.textContent = years;
+            displays.rate.textContent = rate;
+
+            const monthlyRate = rate / 100 / 12;
+            let currentBalance = initial;
+            let totalPrincipal = initial;
+            
+            const chartLabels = [];
+            const principalData = [];
+            const interestData = [];
+
+            // 逐年計算
+            for (let y = 1; y <= years; y++) {
+                // 每個月計算複利
+                for (let m = 1; m <= 12; m++) {
+                    currentBalance += monthly;
+                    currentBalance *= (1 + monthlyRate);
+                    totalPrincipal += monthly;
+                }
+                chartLabels.push(`第 ${y} 年`);
+                principalData.push(totalPrincipal);
+                interestData.push(currentBalance - totalPrincipal);
+            }
+
+            const finalAmount = currentBalance;
+            const finalInterest = finalAmount - totalPrincipal;
+
+            // 更新文字結果
+            outputs.totalAmount.textContent = formatCurrency(finalAmount);
+            outputs.totalPrincipal.textContent = formatCurrency(totalPrincipal);
+            outputs.totalInterest.textContent = formatCurrency(finalInterest);
+
+            // 更新目標達成率進度條
+            let progress = (finalAmount / target) * 100;
+            if (progress > 100) progress = 100;
+            outputs.progressText.textContent = progress.toFixed(1) + '%';
+            outputs.progressFill.style.width = progress + '%';
+            
+            if (progress >= 100) {
+                outputs.progressFill.style.backgroundColor = 'var(--success-color)';
+                outputs.progressText.style.color = 'var(--success-color)';
+                outputs.progressText.style.fontWeight = 'bold';
+            } else {
+                outputs.progressFill.style.backgroundColor = 'var(--primary-color)';
+                outputs.progressText.style.color = 'inherit';
+                outputs.progressText.style.fontWeight = 'normal';
+            }
+
+            // 更新圖表
+            updateChart(chartLabels, principalData, interestData);
+        }
+
+        // 繪製或更新 Chart.js 圖表
+        function updateChart(labels, principalData, interestData) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = principalData;
+                chartInstance.data.datasets[1].data = interestData;
+                chartInstance.update();
+            } else {
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: '累積投入本金',
+                                data: principalData,
+                                backgroundColor: '#93c5fd', // 淺藍色
+                                borderRadius: {topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4}
+                            },
+                            {
+                                label: '累積複利利息',
+                                data: interestData,
+                                backgroundColor: '#2563eb', // 深藍色
+                                borderRadius: {topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0}
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                grid: { display: false }
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        if (value >= 10000) {
+                                            return (value / 10000).toFixed(0) + ' 萬';
+                                        }
+                                        return value;
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed.y !== null) {
+                                            label += 'NT$ ' + Math.round(context.parsed.y).toLocaleString();
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 監聽所有輸入欄位的變化，觸發即時計算
+        Object.values(inputs).forEach(input => {
+            input.addEventListener('input', calculateAndUpdate);
+        });
+
+        // 初始執行一次
+        calculateAndUpdate();
+    </script>
+</body>
+</html>
